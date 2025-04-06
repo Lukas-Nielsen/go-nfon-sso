@@ -19,7 +19,7 @@ import github.com/Lukas-Nielsen/go-nfon-sso
 you need the portal base url eg. https://admin.nfon.com or https://start.cloudya.com and the client id eg. admin-portal or cloudya
 
 ```go
-client, err := NewClient(<portalBaseUrl> string, <clientId> string);
+client, err := NewClient(<portalBaseUrl> string, <clientId> string)
 ```
 
 ### auth
@@ -27,13 +27,19 @@ client, err := NewClient(<portalBaseUrl> string, <clientId> string);
 #### login
 
 ```go
-uri, err := client.Login(<username> string, <password> string);
+uri, err := client.Login(<username> string, <password> string)
 ```
 
 #### otp
 
 ```go
-err := client.OTP(<otp (6 digit)> string);
+err := client.OTP(<otp (6 digit)> string)
+```
+
+#### logout
+
+```go
+client.Logout()
 ```
 
 ### token operation

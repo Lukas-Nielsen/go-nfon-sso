@@ -3,6 +3,7 @@ package nfon
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -128,6 +129,18 @@ func (c *Client) OTP(url string, otp string) error {
 	}
 
 	return fmt.Errorf("%s", resp.String())
+}
+
+func (c *Client) Logout() {
+	c.client.R().
+		SetQueryParams(map[string]string{
+			"client_id":                c.clientId,
+			"post_logout_redirect_uri": c.portalBaseUrl,
+			"id_token_hint":            c.token.IDToken,
+		}).
+		Get("https://sso.cloud-cfg.com/realms/login/protocol/openid-connect/logout")
+
+	c.client.Cookies = []*http.Cookie{}
 }
 
 func (c *Client) setup() *Client {
