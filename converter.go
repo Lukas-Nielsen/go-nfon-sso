@@ -6,7 +6,7 @@ type Data struct {
 }
 
 type Links struct {
-	Rel  string `json:"link"`
+	Rel  string `json:"rel"`
 	Href string `json:"href"`
 }
 
