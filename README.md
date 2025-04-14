@@ -76,6 +76,13 @@ Response, err := client.GetPortalApi(<uri> string, <query> map[string]string, <h
 *resty.Response, err := client.<Post|Put|Patch>(<uri> string, <payload> any, <query> map[string]string, <header> map[string]string)
 ```
 
+#### reuqest count
+
+```go
+int := client.GetRequestCount()
+client.ResetRequestCount()
+```
+
 ## known possible client id's
 
 ### admin portal

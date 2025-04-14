@@ -27,12 +27,14 @@ type Client struct {
 	codeVerifier  string
 	token         Token
 	client        *resty.Client
+	requestCount  int
 }
 
 func NewClient(portalBaseUrl string, clientId string) (*Client, error) {
 	c := Client{
 		portalBaseUrl: portalBaseUrl,
 		clientId:      clientId,
+		requestCount:  0,
 	}
 
 	c = *c.setup()
@@ -216,7 +218,16 @@ func (c *Client) TokenToJsonFile(path string) error {
 	return os.WriteFile(path, data, 0666)
 }
 
+func (c *Client) GetRequestCount() int {
+	return c.requestCount
+}
+
+func (c *Client) ResetRequestCount() {
+	c.requestCount = 0
+}
+
 func (c *Client) Get(uri string, query map[string]string, header map[string]string) (*resty.Response, error) {
+	c.requestCount += 1
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
@@ -226,6 +237,7 @@ func (c *Client) Get(uri string, query map[string]string, header map[string]stri
 }
 
 func (c *Client) GetPortalApi(uri string, query map[string]string, header map[string]string) (Response, error) {
+	c.requestCount += 1
 	var result response
 	_, err := c.client.R().
 		SetAuthScheme(c.token.TokenType).
@@ -239,6 +251,7 @@ func (c *Client) GetPortalApi(uri string, query map[string]string, header map[st
 }
 
 func (c *Client) Delete(uri string, query map[string]string, header map[string]string) (*resty.Response, error) {
+	c.requestCount += 1
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
@@ -248,6 +261,7 @@ func (c *Client) Delete(uri string, query map[string]string, header map[string]s
 }
 
 func (c *Client) Post(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
+	c.requestCount += 1
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
@@ -258,6 +272,7 @@ func (c *Client) Post(uri string, payload any, query map[string]string, header m
 }
 
 func (c *Client) Put(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
+	c.requestCount += 1
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
@@ -268,6 +283,7 @@ func (c *Client) Put(uri string, payload any, query map[string]string, header ma
 }
 
 func (c *Client) Patch(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
+	c.requestCount += 1
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
