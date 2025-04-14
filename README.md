@@ -66,13 +66,14 @@ token := client.GetToken()
 #### get, delete
 
 ```go
-*resty.Response, err := client.<get|delete>(<uri> string, <query> map[string]string, <header> map[string]string)
+*resty.Response, err := client.<Get|Delete>(<uri> string, <query> map[string]string, <header> map[string]string)
+Response, err := client.GetPortalApi(<uri> string, <query> map[string]string, <header> map[string]string)
 ```
 
 #### post, put, patch
 
 ```go
-*resty.Response, err := client.<post|put|patch>(<uri> string, <payload> any, <query> map[string]string, <header> map[string]string)
+*resty.Response, err := client.<Post|Put|Patch>(<uri> string, <payload> any, <query> map[string]string, <header> map[string]string)
 ```
 
 ## known possible client id's

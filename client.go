@@ -225,6 +225,19 @@ func (c *Client) Get(uri string, query map[string]string, header map[string]stri
 		Get(uri)
 }
 
+func (c *Client) GetPortalApi(uri string, query map[string]string, header map[string]string) (Response, error) {
+	var result response
+	_, err := c.client.R().
+		SetAuthScheme(c.token.TokenType).
+		SetAuthToken(c.token.AccessToken).
+		SetQueryParams(query).
+		SetHeaders(header).
+		SetResult(&result).
+		Get(uri)
+
+	return result.parse(), err
+}
+
 func (c *Client) Delete(uri string, query map[string]string, header map[string]string) (*resty.Response, error) {
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
