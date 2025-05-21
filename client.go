@@ -58,7 +58,7 @@ func (c *Client) Login(username string, password string) (string, error) {
 	c.codeVerifier, _ = generateCodeVerifier(43)
 	codeChallenge := generateCodeChallenge(c.codeVerifier)
 
-	// get login form
+	// get username form
 	resp, err := c.client.R().
 		SetQueryParams(map[string]string{
 			"client_id":             c.clientId,
@@ -82,7 +82,25 @@ func (c *Client) Login(username string, password string) (string, error) {
 
 	formUrl, _ := getFormActionFromBody(resp.String(), "kc-form-login")
 
-	// login
+	// login username
+	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
+	resp, err = c.client.R().
+		SetFormData(map[string]string{
+			"username": username,
+		}).
+		Post(formUrl)
+	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(20))
+
+	if err != nil {
+		return "", err
+	}
+	if resp.IsError() {
+		return "", fmt.Errorf("%s", resp.String())
+	}
+
+	formUrl, _ = getFormActionFromBody(resp.String(), "kc-form-login")
+
+	// login username + password
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err = c.client.R().
 		SetFormData(map[string]string{
