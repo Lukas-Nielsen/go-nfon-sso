@@ -6,8 +6,18 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 
 	"github.com/go-resty/resty/v2"
+)
+
+const (
+	authBaseURL         = "https://sso.cloud-cfg.com/realms/login/protocol/openid-connect"
+	formLogin           = "kc-form-login"
+	formOTP             = "kc-otp-login-form"
+	scopeOpenID         = "openid"
+	userAgent           = "go-nfon-sso"
+	defaultMaxRedirects = 20
 )
 
 type Token struct {
@@ -22,28 +32,25 @@ type Token struct {
 }
 
 type Client struct {
-	portalBaseUrl string
+	portalBaseURL string
 	clientId      string
 	codeVerifier  string
 	token         Token
 	client        *resty.Client
-	requestCount  int
+	requestCount  int32
 }
 
-func NewClient(portalBaseUrl string, clientId string) (*Client, error) {
-	c := Client{
-		portalBaseUrl: portalBaseUrl,
+func NewClient(portalBaseURL, clientId string) (*Client, error) {
+	c := &Client{
+		portalBaseURL: portalBaseURL,
 		clientId:      clientId,
-		requestCount:  0,
 	}
-
-	c = *c.setup()
-
-	return &c, nil
+	c.setup()
+	return c, nil
 }
 
-func (c *Client) SetPortalBaseUrl(portalBaseUrl string) *Client {
-	c.portalBaseUrl = portalBaseUrl
+func (c *Client) SetPortalBaseURL(portalBaseURL string) *Client {
+	c.portalBaseURL = portalBaseURL
 	return c
 }
 
@@ -52,55 +59,56 @@ func (c *Client) SetClientId(clientId string) *Client {
 	return c
 }
 
-func (c *Client) Login(username string, password string) (string, error) {
+func (c *Client) Login(username, password string) (string, error) {
 	state, _ := generateUnique(32)
 	nonce, _ := generateUnique(32)
 	c.codeVerifier, _ = generateCodeVerifier(43)
 	codeChallenge := generateCodeChallenge(c.codeVerifier)
 
-	// get username form
 	resp, err := c.client.R().
 		SetQueryParams(map[string]string{
 			"client_id":             c.clientId,
-			"redirect_uri":          c.portalBaseUrl,
+			"redirect_uri":          c.portalBaseURL,
 			"state":                 state,
 			"response_mode":         "fragment",
 			"response_type":         "code",
-			"scope":                 "openid",
+			"scope":                 scopeOpenID,
 			"nonce":                 nonce,
 			"code_challenge":        codeChallenge,
 			"code_challenge_method": "S256",
 		}).
-		Get("https://sso.cloud-cfg.com/realms/login/protocol/openid-connect/auth")
-
+		Get(authBaseURL + "/auth")
 	if err != nil {
 		return "", err
 	}
 	if resp.IsError() {
-		return "", fmt.Errorf("%s", resp.String())
+		return "", fmt.Errorf("login failed: %s", resp.Status())
 	}
 
-	formUrl, _ := getFormActionFromBody(resp.String(), "kc-form-login")
+	formUrl, err := getFormActionFromBody(resp.String(), formLogin)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse login form: %w", err)
+	}
 
-	// login username
+	// username
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err = c.client.R().
-		SetFormData(map[string]string{
-			"username": username,
-		}).
+		SetFormData(map[string]string{"username": username}).
 		Post(formUrl)
-	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(20))
-
+	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(defaultMaxRedirects))
 	if err != nil {
 		return "", err
 	}
 	if resp.IsError() {
-		return "", fmt.Errorf("%s", resp.String())
+		return "", fmt.Errorf("username step failed: %s", resp.Status())
 	}
 
-	formUrl, _ = getFormActionFromBody(resp.String(), "kc-form-login")
+	formUrl, err = getFormActionFromBody(resp.String(), formLogin)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse password form: %w", err)
+	}
 
-	// login username + password
+	// username + password
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err = c.client.R().
 		SetFormData(map[string]string{
@@ -110,26 +118,26 @@ func (c *Client) Login(username string, password string) (string, error) {
 			"credentialId": "",
 		}).
 		Post(formUrl)
-	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(20))
-
+	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(defaultMaxRedirects))
 	if err != nil {
 		return "", err
 	}
 
-	if resp.StatusCode() == 200 {
-		// get otp form url
-		formUrl, _ = getFormActionFromBody(resp.String(), "kc-otp-login-form")
+	switch resp.StatusCode() {
+	case http.StatusOK:
+		formUrl, err = getFormActionFromBody(resp.String(), formOTP)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse OTP form: %w", err)
+		}
 		return formUrl, nil
-	} else if resp.StatusCode() == 302 {
-		// fetch access token
+	case http.StatusFound:
 		return "", c.fetchToken(getCodeFromURL(resp.Header().Get("Location")))
+	default:
+		return "", fmt.Errorf("unexpected response: %s", resp.Status())
 	}
-
-	return "", fmt.Errorf("%s", resp.String())
 }
 
-func (c *Client) OTP(url string, otp string) error {
-	// do otp
+func (c *Client) OTP(url, otp string) error {
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err := c.client.R().
 		SetFormData(map[string]string{
@@ -137,37 +145,32 @@ func (c *Client) OTP(url string, otp string) error {
 			"login": "Loggen+Sie+sich+ein",
 		}).
 		Post(url)
-	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(20))
-
+	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(defaultMaxRedirects))
 	if err != nil && !strings.Contains(err.Error(), "auto redirect is disabled") {
 		return err
 	}
-
-	if resp.StatusCode() == 302 {
-		// fetch access token
+	if resp.StatusCode() == http.StatusFound {
 		return c.fetchToken(getCodeFromURL(resp.Header().Get("Location")))
 	}
-
-	return fmt.Errorf("%s", resp.String())
+	return fmt.Errorf("OTP failed: %s", resp.Status())
 }
 
 func (c *Client) Logout() {
 	c.client.R().
 		SetQueryParams(map[string]string{
 			"client_id":                c.clientId,
-			"post_logout_redirect_uri": c.portalBaseUrl,
+			"post_logout_redirect_uri": c.portalBaseURL,
 			"id_token_hint":            c.token.IDToken,
 		}).
-		Get("https://sso.cloud-cfg.com/realms/login/protocol/openid-connect/logout")
+		Get(authBaseURL + "/logout")
 
-	c.client.Cookies = []*http.Cookie{}
+	// Cookies löschen
+	c.client.SetCookieJar(nil)
 }
 
-func (c *Client) setup() *Client {
+func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", "go-nfon-sso")
-
-	return c
+		SetHeader("User-Agent", userAgent)
 }
 
 func (c *Client) fetchToken(code string) error {
@@ -177,17 +180,17 @@ func (c *Client) fetchToken(code string) error {
 			"code":          code,
 			"grant_type":    "authorization_code",
 			"client_id":     c.clientId,
-			"redirect_uri":  c.portalBaseUrl,
+			"redirect_uri":  c.portalBaseURL,
 			"code_verifier": c.codeVerifier,
 		}).
-		Post("https://sso.cloud-cfg.com/realms/login/protocol/openid-connect/token")
+		Post(authBaseURL + "/token")
 	if err != nil {
 		return err
 	}
-	if resp.IsSuccess() {
-		return nil
+	if resp.IsError() {
+		return fmt.Errorf("token fetch failed: %s", resp.Status())
 	}
-	return fmt.Errorf("%s", resp.String())
+	return nil
 }
 
 func (c *Client) RefreshToken() error {
@@ -198,115 +201,89 @@ func (c *Client) RefreshToken() error {
 			"client_id":     c.clientId,
 		}).
 		SetResult(&c.token).
-		Post("https://sso.cloud-cfg.com/realms/login/protocol/openid-connect/token")
-
+		Post(authBaseURL + "/token")
 	if err != nil {
 		return err
 	}
-	if resp.IsSuccess() {
-		return nil
+	if resp.IsError() {
+		return fmt.Errorf("token refresh failed: %s", resp.Status())
 	}
-	return fmt.Errorf("%s", resp.String())
+	return nil
 }
 
-func (c *Client) GetToken() Token {
-	return c.token
-}
-
-func (c *Client) SetToken(token Token) {
-	c.token = token
-}
+func (c *Client) GetToken() Token      { return c.token }
+func (c *Client) SetToken(token Token) { c.token = token }
+func (c *Client) GetRequestCount() int { return int(atomic.LoadInt32(&c.requestCount)) }
+func (c *Client) ResetRequestCount()   { atomic.StoreInt32(&c.requestCount, 0) }
 
 func (c *Client) TokenFromJsonFile(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-
 	return json.Unmarshal(data, &c.token)
 }
 
 func (c *Client) TokenToJsonFile(path string) error {
-
 	data, err := json.Marshal(c.token)
 	if err != nil {
 		return err
 	}
-
 	return os.WriteFile(path, data, 0666)
 }
 
-func (c *Client) GetRequestCount() int {
-	return c.requestCount
-}
+// ---- Generische Request-Methode ----
+func (c *Client) doRequest(method, uri string, payload any, query, header map[string]string, result any) (*resty.Response, error) {
+	atomic.AddInt32(&c.requestCount, 1)
 
-func (c *Client) ResetRequestCount() {
-	c.requestCount = 0
-}
-
-func (c *Client) Get(uri string, query map[string]string, header map[string]string) (*resty.Response, error) {
-	c.requestCount += 1
-	return c.client.R().
+	req := c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParams(query).
-		SetHeaders(header).
-		Get(uri)
+		SetHeaders(header)
+
+	if payload != nil {
+		req.SetBody(payload)
+	}
+	if result != nil {
+		req.SetResult(result)
+	}
+
+	switch method {
+	case http.MethodGet:
+		return req.Get(uri)
+	case http.MethodPost:
+		return req.Post(uri)
+	case http.MethodPut:
+		return req.Put(uri)
+	case http.MethodPatch:
+		return req.Patch(uri)
+	case http.MethodDelete:
+		return req.Delete(uri)
+	default:
+		return nil, fmt.Errorf("unsupported method: %s", method)
+	}
 }
 
-func (c *Client) GetPortalApi(uri string, query map[string]string, header map[string]string) (Response, error) {
-	c.requestCount += 1
+// Wrapper
+func (c *Client) Get(uri string, query, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(http.MethodGet, uri, nil, query, header, nil)
+}
+func (c *Client) Post(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(http.MethodPost, uri, payload, query, header, nil)
+}
+func (c *Client) Put(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(http.MethodPut, uri, payload, query, header, nil)
+}
+func (c *Client) Patch(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(http.MethodPatch, uri, payload, query, header, nil)
+}
+func (c *Client) Delete(uri string, query, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(http.MethodDelete, uri, nil, query, header, nil)
+}
+
+func (c *Client) GetPortalApi(uri string, query, header map[string]string) (Response, error) {
 	var result response
-	_, err := c.client.R().
-		SetAuthScheme(c.token.TokenType).
-		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
-		SetHeaders(header).
-		SetResult(&result).
-		Get(uri)
-
+	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
 	return result.parse(), err
-}
-
-func (c *Client) Delete(uri string, query map[string]string, header map[string]string) (*resty.Response, error) {
-	c.requestCount += 1
-	return c.client.R().
-		SetAuthScheme(c.token.TokenType).
-		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
-		SetHeaders(header).
-		Delete(uri)
-}
-
-func (c *Client) Post(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
-	c.requestCount += 1
-	return c.client.R().
-		SetAuthScheme(c.token.TokenType).
-		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
-		SetHeaders(header).
-		SetBody(payload).
-		Post(uri)
-}
-
-func (c *Client) Put(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
-	c.requestCount += 1
-	return c.client.R().
-		SetAuthScheme(c.token.TokenType).
-		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
-		SetHeaders(header).
-		SetBody(payload).
-		Put(uri)
-}
-
-func (c *Client) Patch(uri string, payload any, query map[string]string, header map[string]string) (*resty.Response, error) {
-	c.requestCount += 1
-	return c.client.R().
-		SetAuthScheme(c.token.TokenType).
-		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
-		SetHeaders(header).
-		SetBody(payload).
-		Patch(uri)
 }

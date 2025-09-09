@@ -41,7 +41,7 @@ type Items struct {
 }
 
 func DataToMap(data []Data) map[string]any {
-	result := make(map[string]any)
+	result := make(map[string]any, len(data))
 	for _, entry := range data {
 		result[entry.Name] = entry.Value
 	}
@@ -49,7 +49,7 @@ func DataToMap(data []Data) map[string]any {
 }
 
 func LinksToMap(data []Links) map[string]string {
-	result := make(map[string]string)
+	result := make(map[string]string, len(data))
 	for _, entry := range data {
 		result[entry.Rel] = entry.Href
 	}
@@ -57,25 +57,21 @@ func LinksToMap(data []Links) map[string]string {
 }
 
 func (r response) parse() Response {
-	var c Response
-	c.Href = r.Href
-	c.Offset = r.Offset
-	c.Size = r.Size
-	c.Total = r.Total
-
-	c.Links = LinksToMap(r.Links)
-	c.Data = DataToMap(r.Data)
-
-	var t []Items
+	resp := Response{
+		Href:   r.Href,
+		Offset: r.Offset,
+		Size:   r.Size,
+		Total:  r.Total,
+		Links:  LinksToMap(r.Links),
+		Data:   DataToMap(r.Data),
+		Items:  make([]Items, 0, len(r.Items)),
+	}
 	for _, e := range r.Items {
-		e := e
-		t = append(t, Items{
+		resp.Items = append(resp.Items, Items{
 			Href:  e.Href,
 			Links: LinksToMap(e.Links),
 			Data:  DataToMap(e.Data),
 		})
 	}
-	c.Items = t
-
-	return c
+	return resp
 }
