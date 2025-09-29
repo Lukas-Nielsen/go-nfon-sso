@@ -137,7 +137,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	}
 }
 
-func (c *Client) OTP(url, otp string) error {
+func (c *Client) OTP(url, otp string) (string, error) {
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err := c.client.R().
 		SetFormData(map[string]string{
@@ -147,12 +147,17 @@ func (c *Client) OTP(url, otp string) error {
 		Post(url)
 	c.client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(defaultMaxRedirects))
 	if err != nil && !strings.Contains(err.Error(), "auto redirect is disabled") {
-		return err
+		return "", err
 	}
 	if resp.StatusCode() == http.StatusFound {
-		return c.fetchToken(getCodeFromURL(resp.Header().Get("Location")))
+		return "", c.fetchToken(getCodeFromURL(resp.Header().Get("Location")))
 	}
-	return fmt.Errorf("OTP failed: %s", resp.Status())
+
+	formUrl, err := getFormActionFromBody(resp.String(), formOTP)
+	if err != nil {
+		return "", fmt.Errorf("OTP failed and failed to parse OTP form: %w", err)
+	}
+	return formUrl, fmt.Errorf("OTP failed: %s", resp.Status())
 }
 
 func (c *Client) Logout() {
