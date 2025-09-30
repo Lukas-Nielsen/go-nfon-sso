@@ -288,7 +288,7 @@ func (c *Client) Delete(uri string, query, header map[string]string) (*resty.Res
 }
 
 func (c *Client) GetPortalApi(uri string, query, header map[string]string) (Response, error) {
-	var result response
+	var result Response
 	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
-	return result.parse(), err
+	return result, err
 }
