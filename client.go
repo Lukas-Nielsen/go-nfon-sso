@@ -292,3 +292,8 @@ func (c *Client) GetPortalApi(uri string, query, header map[string]string) (Resp
 	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
 	return result, err
 }
+func (c *Client) PostPortalApi(uri string, payload any, query, header map[string]string) (Response, error) {
+	var result Response
+	_, err := c.doRequest(http.MethodPost, uri, payload, query, header, &result)
+	return result, err
+}
