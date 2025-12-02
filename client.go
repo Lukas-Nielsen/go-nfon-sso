@@ -161,16 +161,18 @@ func (c *Client) OTP(url, otp string) (string, error) {
 }
 
 func (c *Client) Logout() {
-	c.client.R().
-		SetQueryParams(map[string]string{
-			"client_id":                c.clientId,
-			"post_logout_redirect_uri": c.portalBaseURL,
-			"id_token_hint":            c.token.IDToken,
-		}).
-		Get(authBaseURL + "/logout")
+	if c != nil {
+		c.client.R().
+			SetQueryParams(map[string]string{
+				"client_id":                c.clientId,
+				"post_logout_redirect_uri": c.portalBaseURL,
+				"id_token_hint":            c.token.IDToken,
+			}).
+			Get(authBaseURL + "/logout")
 
-	// Cookies löschen
-	c.client.SetCookieJar(nil)
+		// Cookies löschen
+		c.client.SetCookieJar(nil)
+	}
 }
 
 func (c *Client) setup() {
