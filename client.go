@@ -272,6 +272,18 @@ func (c *Client) doRequest(method, uri string, payload any, query, header map[st
 	}
 }
 
+func (c *Client) UploadFile(uri string, query, header map[string]string, fieldName string, filePath string, formData map[string]string) (*resty.Response, error) {
+	atomic.AddInt32(&c.requestCount, 1)
+
+	return c.client.R().
+		SetAuthScheme(c.token.TokenType).
+		SetAuthToken(c.token.AccessToken).
+		SetQueryParams(query).
+		SetHeaders(header).
+		SetFile(fieldName, filePath).
+		SetFormData(formData).Post(uri)
+}
+
 // Wrapper
 func (c *Client) Get(uri string, query, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodGet, uri, nil, query, header, nil)
