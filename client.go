@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 
@@ -272,16 +273,28 @@ func (c *Client) doRequest(method, uri string, payload any, query, header map[st
 	}
 }
 
-func (c *Client) UploadFile(uri string, query, header map[string]string, fieldName string, filePath string, formData map[string]string) (*resty.Response, error) {
+func (c *Client) UploadFile(uri string, query, header map[string]string, fieldName string, fileName string, mimeType string, formData map[string]string) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
 
 	return c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParams(query).
 		SetHeaders(header).
-		SetFile(fieldName, filePath).
-		SetFormData(formData).Post(uri)
+		SetMultipartField(
+			fieldName,
+			filepath.Base(fileName),
+			mimeType,
+			file,
+		).
+		SetFormData(formData).
+		Post(uri)
 }
 
 // Wrapper
