@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -138,7 +139,16 @@ func (c *Client) Login(username, password string) (string, error) {
 	}
 }
 
-func (c *Client) OTP(url, otp string) (string, error) {
+func (c *Client) OTP(url, secret string) (string, error) {
+	if len(secret) == 6 {
+		return "", fmt.Errorf("OTP secret to short")
+	}
+
+	otp, err := generateOTP(secret)
+	if err != nil {
+		return "", err
+	}
+
 	c.client.SetRedirectPolicy(resty.NoRedirectPolicy())
 	resp, err := c.client.R().
 		SetFormData(map[string]string{
@@ -178,7 +188,15 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", userAgent)
+		SetHeader("User-Agent", userAgent).
+		AddRetryAfterErrorCondition().
+		AddRetryCondition(func(r *resty.Response, err error) bool {
+			return err == nil && slices.Contains([]int{http.StatusUnauthorized, http.StatusForbidden}, r.StatusCode())
+		}).
+		AddRetryHook(func(r *resty.Response, err error) {
+			c.RefreshToken()
+		}).
+		SetRetryCount(3)
 }
 
 func (c *Client) fetchToken(code string) error {

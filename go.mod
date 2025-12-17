@@ -4,4 +4,9 @@ go 1.24.0
 
 require github.com/go-resty/resty/v2 v2.16.5
 
-require golang.org/x/net v0.44.0
+require (
+	github.com/pquerna/otp v1.5.0
+	golang.org/x/net v0.44.0
+)
+
+require github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
