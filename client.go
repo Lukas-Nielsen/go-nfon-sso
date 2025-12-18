@@ -189,14 +189,12 @@ func (c *Client) Logout() {
 func (c *Client) setup() {
 	c.client = resty.New().
 		SetHeader("User-Agent", userAgent).
-		AddRetryAfterErrorCondition().
 		AddRetryCondition(func(r *resty.Response, err error) bool {
 			return err == nil && slices.Contains([]int{http.StatusUnauthorized, http.StatusForbidden}, r.StatusCode())
 		}).
 		AddRetryHook(func(r *resty.Response, err error) {
 			c.RefreshToken()
-		}).
-		SetRetryCount(3)
+		})
 }
 
 func (c *Client) fetchToken(code string) error {
