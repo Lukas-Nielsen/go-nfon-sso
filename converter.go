@@ -80,3 +80,51 @@ func (r *Response) UnmarshalJSON(data []byte) error {
 	}
 	return nil
 }
+
+func (r *Response) MarshalJSON() ([]byte, error) {
+	aux := struct {
+		Href   string `json:"href,omitempty"`
+		Offset int    `json:"offset,omitempty"`
+		Total  int    `json:"total,omitempty"`
+		Size   int    `json:"size,omitempty"`
+		Links  []Link `json:"links,omitempty"`
+		Data   []Data `json:"data,omitempty"`
+		Items  []struct {
+			Href  string `json:"href,omitempty"`
+			Links []Link `json:"links,omitempty"`
+			Data  []Data `json:"data,omitempty"`
+		} `json:"items,omitempty"`
+	}{
+		Href:   r.Href,
+		Offset: r.Offset,
+		Total:  r.Total,
+		Size:   r.Size,
+	}
+
+	for rel, href := range r.Links {
+		aux.Links = append(aux.Links, Link{Rel: rel, Href: href})
+	}
+
+	for name, value := range r.Data {
+		aux.Data = append(aux.Data, Data{Name: name, Value: value})
+	}
+
+	for _, it := range r.Items {
+		item := struct {
+			Href  string `json:"href,omitempty"`
+			Links []Link `json:"links,omitempty"`
+			Data  []Data `json:"data,omitempty"`
+		}{
+			Href: it.Href,
+		}
+		for rel, href := range it.Links {
+			item.Links = append(item.Links, Link{Rel: rel, Href: href})
+		}
+		for name, value := range it.Data {
+			item.Data = append(item.Data, Data{Name: name, Value: value})
+		}
+		aux.Items = append(aux.Items, item)
+	}
+
+	return json.Marshal(&aux)
+}
