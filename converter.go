@@ -2,6 +2,7 @@ package nfon
 
 import (
 	"encoding/json"
+	"maps"
 )
 
 type Data struct {
@@ -127,4 +128,53 @@ func (r *Response) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&aux)
+}
+
+func (r *Response) DeepCopy() Response {
+	if r == nil {
+		return Response{}
+	}
+
+	newResp := Response{
+		Href:   r.Href,
+		Offset: r.Offset,
+		Total:  r.Total,
+		Size:   r.Size,
+	}
+
+	if r.Links != nil {
+		newResp.Links = make(map[string]string, len(r.Links))
+		maps.Copy(newResp.Links, r.Links)
+	}
+
+	if r.Data != nil {
+		newResp.Data = make(map[string]any, len(r.Data))
+		maps.Copy(newResp.Data, r.Data)
+	}
+
+	// Deep‑copy Items slice (and each Item’s maps)
+	if r.Items != nil {
+		newResp.Items = make([]Item, len(r.Items))
+		for i, it := range r.Items {
+			newItem := Item{
+				Href: it.Href,
+			}
+
+			// copy Links map of the item
+			if it.Links != nil {
+				newItem.Links = make(map[string]string, len(it.Links))
+				maps.Copy(newItem.Links, it.Links)
+			}
+
+			// copy Data map of the item
+			if it.Data != nil {
+				newItem.Data = make(map[string]any, len(it.Data))
+				maps.Copy(newItem.Data, it.Data)
+			}
+
+			newResp.Items[i] = newItem
+		}
+	}
+
+	return newResp
 }
