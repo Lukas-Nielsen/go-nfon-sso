@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -229,13 +229,7 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", userAgent).
-		AddRetryCondition(func(r *resty.Response, err error) bool {
-			return err == nil && slices.Contains([]int{http.StatusUnauthorized, http.StatusForbidden}, r.StatusCode())
-		}).
-		AddRetryHook(func(r *resty.Response, err error) {
-			c.RefreshToken()
-		})
+		SetHeader("User-Agent", userAgent)
 }
 
 func (c *Client) fetchToken(code string) error {
@@ -301,7 +295,7 @@ func (c *Client) TokenToJsonFile(path string) error {
 }
 
 // ---- Generische Request-Methode ----
-func (c *Client) doRequest(method, uri string, payload any, query, header map[string]string, result any) (*resty.Response, error) {
+func (c *Client) doRequest(method, uri string, payload any, query url.Values, header map[string]string, result any) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
 
 	if err := c.validateToken(); err != nil {
@@ -311,7 +305,7 @@ func (c *Client) doRequest(method, uri string, payload any, query, header map[st
 	req := c.client.R().
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
-		SetQueryParams(query).
+		SetQueryParamsFromValues(query).
 		SetHeaders(header)
 
 	if payload != nil {
@@ -362,28 +356,28 @@ func (c *Client) UploadFile(uri string, query, header map[string]string, fieldNa
 }
 
 // Wrapper
-func (c *Client) Get(uri string, query, header map[string]string) (*resty.Response, error) {
+func (c *Client) Get(uri string, query url.Values, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodGet, uri, nil, query, header, nil)
 }
-func (c *Client) Post(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+func (c *Client) Post(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodPost, uri, payload, query, header, nil)
 }
-func (c *Client) Put(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+func (c *Client) Put(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodPut, uri, payload, query, header, nil)
 }
-func (c *Client) Patch(uri string, payload any, query, header map[string]string) (*resty.Response, error) {
+func (c *Client) Patch(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodPatch, uri, payload, query, header, nil)
 }
-func (c *Client) Delete(uri string, query, header map[string]string) (*resty.Response, error) {
+func (c *Client) Delete(uri string, query url.Values, header map[string]string) (*resty.Response, error) {
 	return c.doRequest(http.MethodDelete, uri, nil, query, header, nil)
 }
 
-func (c *Client) GetPortalApi(uri string, query, header map[string]string) (Response, error) {
+func (c *Client) GetPortalApi(uri string, query url.Values, header map[string]string) (Response, error) {
 	var result Response
 	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
 	return result, err
 }
-func (c *Client) PostPortalApi(uri string, payload any, query, header map[string]string) (Response, error) {
+func (c *Client) PostPortalApi(uri string, payload any, query url.Values, header map[string]string) (Response, error) {
 	var result Response
 	_, err := c.doRequest(http.MethodPost, uri, payload, query, header, &result)
 	return result, err
