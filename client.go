@@ -434,7 +434,7 @@ func (c *Client) validateToken() error {
 	defer c.mu.Unlock()
 
 	if c.token.AccessToken == "" {
-		return fmt.Errorf("no token")
+		return c.Auth()
 	}
 
 	if time.Now().After(c.tokenExpiresAt.Add(-c.refreshBefore)) {
