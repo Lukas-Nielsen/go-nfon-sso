@@ -283,7 +283,10 @@ func (c *Client) TokenFromJsonFile(path string) error {
 	if err != nil {
 		return err
 	}
-	return json.Unmarshal(data, &c.token)
+
+	err = json.Unmarshal(data, &c.token)
+	c.updateExpiry()
+	return err
 }
 
 func (c *Client) TokenToJsonFile(path string) error {
@@ -377,9 +380,16 @@ func (c *Client) GetPortalApi(uri string, query url.Values, header map[string]st
 	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
 	return result, err
 }
+
 func (c *Client) PostPortalApi(uri string, payload any, query url.Values, header map[string]string) (Response, error) {
 	var result Response
 	_, err := c.doRequest(http.MethodPost, uri, payload, query, header, &result)
+	return result, err
+}
+
+func (c *Client) PutPortalApi(uri string, payload any, query url.Values, header map[string]string) (Response, error) {
+	var result Response
+	_, err := c.doRequest(http.MethodPut, uri, payload, query, header, &result)
 	return result, err
 }
 
