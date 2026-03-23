@@ -24,16 +24,16 @@ client, err := NewClient(<portalBaseUrl> string, <clientId> string)
 
 ### auth
 
-#### login
+#### set user
 
 ```go
-uri, err := client.Login(<username> string, <password> string)
+uri, err := client.SetUser(<username> string, <password> string, <otp secret> string)
 ```
 
-#### otp
+#### auth
 
 ```go
-err := client.OTP(<otp (6 digit)> string)
+err := client.Auth()
 ```
 
 #### logout
@@ -74,6 +74,12 @@ Response, err := client.GetPortalApi(<uri> string, <query> map[string]string, <h
 
 ```go
 *resty.Response, err := client.<Post|Put|Patch>(<uri> string, <payload> any, <query> map[string]string, <header> map[string]string)
+Response, err := client.PostPortalApi(<uri> string, <query> map[string]string, <header> map[string]string)
+```
+
+#### upload file
+```go
+*resty.Response, err := UploadFile(<uri> string, <query> map[string]string, <header> map[string]string, <fieldName> string, <fileName> string, <mimeType> string, <formData> map[string]string) 
 ```
 
 #### reuqest count

@@ -8,9 +8,12 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const (
@@ -33,13 +36,26 @@ type Token struct {
 	Scope            string `json:"scope"`
 }
 
+type user struct {
+	username string
+	password string
+	otp      string
+}
+
 type Client struct {
+	mu             sync.Mutex
+	tokenExpiresAt time.Time
+	refreshBefore  time.Duration
+	autoRefresh    bool
+	stopChan       chan struct{}
+
 	portalBaseURL string
 	clientId      string
 	codeVerifier  string
 	token         Token
 	client        *resty.Client
 	requestCount  int32
+	user          user
 }
 
 func NewClient(portalBaseURL, clientId string) (*Client, error) {
@@ -61,7 +77,7 @@ func (c *Client) SetClientId(clientId string) *Client {
 	return c
 }
 
-func (c *Client) Login(username, password string) (string, error) {
+func (c *Client) login(username, password string) (string, error) {
 	state, _ := generateUnique(32)
 	nonce, _ := generateUnique(32)
 	c.codeVerifier, _ = generateCodeVerifier(43)
@@ -139,7 +155,7 @@ func (c *Client) Login(username, password string) (string, error) {
 	}
 }
 
-func (c *Client) OTP(url, secret string) (string, error) {
+func (c *Client) otp(url, secret string) (string, error) {
 	if len(secret) == 6 {
 		return "", fmt.Errorf("OTP secret to short")
 	}
@@ -169,6 +185,31 @@ func (c *Client) OTP(url, secret string) (string, error) {
 		return "", fmt.Errorf("OTP failed and failed to parse OTP form: %w", err)
 	}
 	return formUrl, fmt.Errorf("OTP failed: %s", resp.Status())
+}
+
+func (c *Client) Auth() error {
+	uri, err := c.login(c.user.username, c.user.password)
+
+	if err != nil {
+		return fmt.Errorf("login failed: %v", err)
+	}
+
+	if uri != "" {
+		_, err := c.otp(uri, c.user.otp)
+
+		if err != nil {
+			return fmt.Errorf("OTP login failed: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// username required, password required, otp can be an empty string
+func (c *Client) SetUser(username string, password string, otp string) *Client {
+	c.user = user{username: username, password: password, otp: otp}
+
+	return c
 }
 
 func (c *Client) Logout() {
@@ -226,12 +267,15 @@ func (c *Client) RefreshToken() error {
 		}).
 		SetResult(&c.token).
 		Post(authBaseURL + "/token")
+
 	if err != nil {
 		return err
 	}
+
 	if resp.IsError() {
-		return fmt.Errorf("token refresh failed: %s", resp.Status())
+		c.Auth()
 	}
+
 	return nil
 }
 
@@ -259,6 +303,10 @@ func (c *Client) TokenToJsonFile(path string) error {
 // ---- Generische Request-Methode ----
 func (c *Client) doRequest(method, uri string, payload any, query, header map[string]string, result any) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
+
+	if err := c.validateToken(); err != nil {
+		return &resty.Response{}, err
+	}
 
 	req := c.client.R().
 		SetAuthScheme(c.token.TokenType).
@@ -339,4 +387,62 @@ func (c *Client) PostPortalApi(uri string, payload any, query, header map[string
 	var result Response
 	_, err := c.doRequest(http.MethodPost, uri, payload, query, header, &result)
 	return result, err
+}
+
+func (c *Client) parseJWTExpiry(accessToken string) (time.Time, error) {
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+
+	token, _, err := parser.ParseUnverified(accessToken, jwt.MapClaims{})
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return time.Time{}, fmt.Errorf("invalid claims")
+	}
+
+	expRaw, ok := claims["exp"]
+	if !ok {
+		return time.Time{}, fmt.Errorf("exp missing")
+	}
+
+	expFloat, ok := expRaw.(float64)
+	if !ok {
+		return time.Time{}, fmt.Errorf("invalid exp type")
+	}
+
+	return time.Unix(int64(expFloat), 0), nil
+}
+
+func (c *Client) updateExpiry() {
+	if c.token.AccessToken == "" {
+		return
+	}
+
+	exp, err := c.parseJWTExpiry(c.token.AccessToken)
+	if err != nil {
+		c.tokenExpiresAt = time.Now().Add(time.Duration(c.token.ExpiresIn) * time.Second)
+		return
+	}
+
+	c.tokenExpiresAt = exp
+}
+
+func (c *Client) validateToken() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.token.AccessToken == "" {
+		return fmt.Errorf("no token")
+	}
+
+	if time.Now().After(c.tokenExpiresAt.Add(-c.refreshBefore)) {
+		if err := c.RefreshToken(); err != nil {
+			return err
+		}
+		c.updateExpiry()
+	}
+
+	return nil
 }
