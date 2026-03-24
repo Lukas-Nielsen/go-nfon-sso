@@ -178,3 +178,19 @@ func (r *Response) DeepCopy() Response {
 
 	return newResp
 }
+
+func DataToMap(data []Data) map[string]any {
+	result := make(map[string]any, len(data))
+	for _, entry := range data {
+		result[entry.Name] = entry.Value
+	}
+	return result
+}
+
+func LinksToMap(data []Link) map[string]string {
+	result := make(map[string]string, len(data))
+	for _, entry := range data {
+		result[entry.Rel] = entry.Href
+	}
+	return result
+}
