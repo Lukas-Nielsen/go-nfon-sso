@@ -297,6 +297,20 @@ func (c *Client) TokenToJsonFile(path string) error {
 	return os.WriteFile(path, data, 0666)
 }
 
+func (c *Client) TokenFromJson(data string) error {
+	err := json.Unmarshal([]byte(data), &c.token)
+	c.updateExpiry()
+	return err
+}
+
+func (c *Client) TokenToJson() string {
+	data, err := json.Marshal(c.token)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
 // ---- Generische Request-Methode ----
 func (c *Client) doRequest(method, uri string, payload any, query url.Values, header map[string]string, result any) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
@@ -441,7 +455,7 @@ func (c *Client) validateToken() error {
 		return c.Auth()
 	}
 
-	if time.Now().After(c.tokenExpiresAt.Add(-c.refreshBefore)) {
+	if time.Now().After(c.tokenExpiresAt.Add(-600)) {
 		if err := c.RefreshToken(); err != nil {
 			return err
 		}
