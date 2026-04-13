@@ -233,7 +233,7 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", fmt.Sprintf("%s/%s", userAgent, version))
+		SetHeader("User-Agent", sanitizeUA(fmt.Sprintf("%s/%s", userAgent, version)))
 }
 
 func (c *Client) fetchToken(code string) error {
@@ -467,4 +467,14 @@ func (c *Client) validateToken() error {
 	}
 
 	return nil
+}
+
+func sanitizeUA(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r >= 0x20 && r <= 0x7e {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
