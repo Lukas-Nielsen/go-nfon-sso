@@ -1,6 +1,7 @@
 package nfon
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,6 +25,9 @@ const (
 	userAgent           = "go-nfon-sso"
 	defaultMaxRedirects = 20
 )
+
+//go:embed version
+var version string
 
 type Token struct {
 	AccessToken      string `json:"access_token"`
@@ -229,7 +233,7 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", userAgent)
+		SetHeader("User-Agent", fmt.Sprintf("%s/%s", userAgent, version))
 }
 
 func (c *Client) fetchToken(code string) error {
