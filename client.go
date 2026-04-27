@@ -316,7 +316,7 @@ func (c *Client) TokenToJson() string {
 }
 
 // ---- Generische Request-Methode ----
-func (c *Client) doRequest(method, uri string, payload any, query url.Values, header map[string]string, result any) (*resty.Response, error) {
+func (c *Client) doRequest(customer string, method, uri string, payload any, query url.Values, header map[string]string, result any) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
 
 	if err := c.validateToken(); err != nil {
@@ -327,7 +327,7 @@ func (c *Client) doRequest(method, uri string, payload any, query url.Values, he
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParamsFromValues(query).
-		SetHeaders(header)
+		SetHeaders(header).SetHeader("User-Agent", sanitizeUA(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer)))
 
 	if payload != nil {
 		req.SetBody(payload)
@@ -377,37 +377,37 @@ func (c *Client) UploadFile(uri string, query, header map[string]string, fieldNa
 }
 
 // Wrapper
-func (c *Client) Get(uri string, query url.Values, header map[string]string) (*resty.Response, error) {
-	return c.doRequest(http.MethodGet, uri, nil, query, header, nil)
+func (c *Client) Get(customer string, uri string, query url.Values, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(customer, http.MethodGet, uri, nil, query, header, nil)
 }
-func (c *Client) Post(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
-	return c.doRequest(http.MethodPost, uri, payload, query, header, nil)
+func (c *Client) Post(customer string, uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(customer, http.MethodPost, uri, payload, query, header, nil)
 }
-func (c *Client) Put(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
-	return c.doRequest(http.MethodPut, uri, payload, query, header, nil)
+func (c *Client) Put(customer string, uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(customer, http.MethodPut, uri, payload, query, header, nil)
 }
-func (c *Client) Patch(uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
-	return c.doRequest(http.MethodPatch, uri, payload, query, header, nil)
+func (c *Client) Patch(customer string, uri string, payload any, query url.Values, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(customer, http.MethodPatch, uri, payload, query, header, nil)
 }
-func (c *Client) Delete(uri string, query url.Values, header map[string]string) (*resty.Response, error) {
-	return c.doRequest(http.MethodDelete, uri, nil, query, header, nil)
+func (c *Client) Delete(customer string, uri string, query url.Values, header map[string]string) (*resty.Response, error) {
+	return c.doRequest(customer, http.MethodDelete, uri, nil, query, header, nil)
 }
 
-func (c *Client) GetPortalApi(uri string, query url.Values, header map[string]string) (Response, error) {
+func (c *Client) GetPortalApi(customer string, uri string, query url.Values, header map[string]string) (Response, error) {
 	var result Response
-	_, err := c.doRequest(http.MethodGet, uri, nil, query, header, &result)
+	_, err := c.doRequest(customer, http.MethodGet, uri, nil, query, header, &result)
 	return result, err
 }
 
-func (c *Client) PostPortalApi(uri string, payload any, query url.Values, header map[string]string) (Response, error) {
+func (c *Client) PostPortalApi(customer string, uri string, payload any, query url.Values, header map[string]string) (Response, error) {
 	var result Response
-	_, err := c.doRequest(http.MethodPost, uri, payload, query, header, &result)
+	_, err := c.doRequest(customer, http.MethodPost, uri, payload, query, header, &result)
 	return result, err
 }
 
-func (c *Client) PutPortalApi(uri string, payload any, query url.Values, header map[string]string) (Response, error) {
+func (c *Client) PutPortalApi(customer string, uri string, payload any, query url.Values, header map[string]string) (Response, error) {
 	var result Response
-	_, err := c.doRequest(http.MethodPut, uri, payload, query, header, &result)
+	_, err := c.doRequest(customer, http.MethodPut, uri, payload, query, header, &result)
 	return result, err
 }
 
