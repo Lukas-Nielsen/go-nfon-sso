@@ -16,19 +16,19 @@ type Link struct {
 }
 
 type Response struct {
-	Href   string            `json:"href"`
-	Offset int               `json:"offset"`
-	Total  int               `json:"total"`
-	Size   int               `json:"size"`
-	Links  map[string]string `json:"links"`
-	Data   map[string]any    `json:"data"`
-	Items  []Item            `json:"items"`
+	Href   string            `json:"href,omitempty"`
+	Offset int               `json:"offset,omitempty"`
+	Total  int               `json:"total,omitempty"`
+	Size   int               `json:"size,omitempty"`
+	Links  map[string]string `json:"links,omitempty"`
+	Data   map[string]any    `json:"data,omitempty"`
+	Items  []Item            `json:"items,omitempty"`
 }
 
 type Item struct {
-	Href  string            `json:"href"`
-	Links map[string]string `json:"links"`
-	Data  map[string]any    `json:"data"`
+	Href  string            `json:"href,omitempty"`
+	Links map[string]string `json:"links,omitempty"`
+	Data  map[string]any    `json:"data,omitempty"`
 }
 
 func (r *Response) UnmarshalJSON(data []byte) error {

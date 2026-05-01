@@ -233,7 +233,7 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", sanitizeUA(fmt.Sprintf("%s/%s", userAgent, version)))
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s", userAgent, version)))
 }
 
 func (c *Client) fetchToken(code string) error {
@@ -327,7 +327,8 @@ func (c *Client) doRequest(customer string, method, uri string, payload any, que
 		SetAuthScheme(c.token.TokenType).
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParamsFromValues(query).
-		SetHeaders(header).SetHeader("User-Agent", sanitizeUA(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer)))
+		SetHeaders(header).
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer)))
 
 	if payload != nil {
 		req.SetBody(payload)
@@ -352,7 +353,7 @@ func (c *Client) doRequest(customer string, method, uri string, payload any, que
 	}
 }
 
-func (c *Client) UploadFile(uri string, query, header map[string]string, fieldName string, fileName string, mimeType string, formData map[string]string) (*resty.Response, error) {
+func (c *Client) UploadFile(customer string, uri string, query, header map[string]string, fieldName string, fileName string, mimeType string, formData map[string]string) (*resty.Response, error) {
 	atomic.AddInt32(&c.requestCount, 1)
 
 	file, err := os.Open(fileName)
@@ -366,6 +367,7 @@ func (c *Client) UploadFile(uri string, query, header map[string]string, fieldNa
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParams(query).
 		SetHeaders(header).
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer))).
 		SetMultipartField(
 			fieldName,
 			filepath.Base(fileName),
@@ -467,14 +469,4 @@ func (c *Client) validateToken() error {
 	}
 
 	return nil
-}
-
-func sanitizeUA(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		if r >= 0x20 && r <= 0x7e {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
