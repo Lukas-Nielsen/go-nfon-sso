@@ -367,7 +367,7 @@ func (c *Client) UploadFile(customer string, uri string, query, header map[strin
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParams(query).
 		SetHeaders(header).
-		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer))).
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, strings.TrimSpace(version), customer))).
 		SetMultipartField(
 			fieldName,
 			filepath.Base(fileName),
