@@ -233,7 +233,7 @@ func (c *Client) Logout() {
 
 func (c *Client) setup() {
 	c.client = resty.New().
-		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s", userAgent, version)))
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s", userAgent, strings.TrimSpace(version))))
 }
 
 func (c *Client) fetchToken(code string) error {
@@ -328,7 +328,7 @@ func (c *Client) doRequest(customer string, method, uri string, payload any, que
 		SetAuthToken(c.token.AccessToken).
 		SetQueryParamsFromValues(query).
 		SetHeaders(header).
-		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, version, customer)))
+		SetHeader("User-Agent", strings.TrimSpace(fmt.Sprintf("%s/%s (%s)", userAgent, strings.TrimSpace(version), customer)))
 
 	if payload != nil {
 		req.SetBody(payload)
