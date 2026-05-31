@@ -6,7 +6,7 @@ require github.com/go-resty/resty/v2 v2.17.2
 
 require (
 	github.com/pquerna/otp v1.5.0
-	golang.org/x/net v0.53.0
+	golang.org/x/net v0.55.0
 )
 
 require (

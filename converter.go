@@ -82,7 +82,8 @@ func (r *Response) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (r *Response) MarshalJSON() ([]byte, error) {
+func (r Response) MarshalJSON() ([]byte, error) {
+	// Build an auxiliary struct that mirrors the JSON shape the API expects.
 	aux := struct {
 		Href   string `json:"href,omitempty"`
 		Offset int    `json:"offset,omitempty"`
@@ -102,29 +103,33 @@ func (r *Response) MarshalJSON() ([]byte, error) {
 		Size:   r.Size,
 	}
 
+	// ----- top‑level links -------------------------------------------------
 	for rel, href := range r.Links {
 		aux.Links = append(aux.Links, Link{Rel: rel, Href: href})
 	}
 
+	// ----- top‑level data --------------------------------------------------
 	for name, value := range r.Data {
 		aux.Data = append(aux.Data, Data{Name: name, Value: value})
 	}
 
+	// ----- items -----------------------------------------------------------
 	for _, it := range r.Items {
-		item := struct {
+		itAux := struct {
 			Href  string `json:"href,omitempty"`
 			Links []Link `json:"links,omitempty"`
 			Data  []Data `json:"data,omitempty"`
 		}{
 			Href: it.Href,
 		}
+
 		for rel, href := range it.Links {
-			item.Links = append(item.Links, Link{Rel: rel, Href: href})
+			itAux.Links = append(itAux.Links, Link{Rel: rel, Href: href})
 		}
 		for name, value := range it.Data {
-			item.Data = append(item.Data, Data{Name: name, Value: value})
+			itAux.Data = append(itAux.Data, Data{Name: name, Value: value})
 		}
-		aux.Items = append(aux.Items, item)
+		aux.Items = append(aux.Items, itAux)
 	}
 
 	return json.Marshal(&aux)
